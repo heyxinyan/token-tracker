@@ -13,14 +13,14 @@
 ## 功能亮点
 
 - **多 Agent 统一追踪** — Claude Code + Codex + Kimi Code 统一读取，多 Agent 按来源分组
-- **状态栏集成** — Claude Code 用官方 StatusLine 接口；**Codex 业界首创伪 statusline 方案**（hook 注入两行真彩色状态栏，把官方未开放的能力在 Codex 里做了出来）；Kimi Code 用官方 `status_line` 接口
+- **状态集成** -- Claude Code 用官方 StatusLine 接口；Codex 用 `Stop` Hook 追加两行纯文本状态卡；Kimi Code 用官方 `status_line` 接口
 - **实时侧边栏** — `tt sidebar` 窄窗格常驻面板：全部活跃会话一屏总览（状态灯 + 最近提示词 + 「下一步」建议），点击会话直达对应 iTerm2 / tmux 窗格
 - **当前会话自动分屏** — Codex 中显式执行 `$tt-sidebar`，在原会话右侧自动打开 1/3 宽度的独立提示词侧边栏
 - **限额监控** — 实时 5h / 7d 配额百分比 + 重置倒计时
 - **多维成本分析** — 会话 / 日 / 周 / 月多维报表，等效成本统计
 - **定价识别** -- litellm 在线定价 + 内置官方价双层兜底，覆盖 GPT-6 Astra、Claude Fable 5.1 及 Claude / OpenAI / Gemini / Grok 和国产主流（Kimi / GLM / Qwen / 豆包 / DeepSeek / MiniMax / MiMo）；按单次请求计算长上下文阶梯价与 DeepSeek 峰谷价（周末全天谷价），Codex 缓存读写分别计价；未知模型优先套用已知系列价，仍无法识别时提示缺价
 - **会话洞察** — 项目、模型、时长、消息数一览
-- **多主题统一配色** — 6 套主题（Catppuccin 全家 + Nord + Dracula），CLI 报表与各 Agent 状态栏**同源**，`tt theme` 一键切换
+- **多主题统一配色** -- 6 套主题（Catppuccin 全家 + Nord + Dracula），CLI 报表、Claude Code 与 Kimi Code 状态栏同源，`tt theme` 一键切换
 - **零配置** — 自动检测已安装的 Agent，直接读取本地数据
 - **隐私安全** — 数据纯本地存储，不采集、不上传
 
@@ -58,18 +58,16 @@
 
 </details>
 
-### Codex（伪 statusline，业界首创）
+### Codex（Hook 信息卡）
 
-Codex 官方暂不支持自定义 StatusLine。Token Tracker 通过 hook 注入了一个**伪 statusline**——每次回答完成后，在回答尾部追加两行真彩色状态栏。**这是目前业界少见的把状态栏能力在 Codex 里做出来的实现方案**。
-
-![Codex StatusLine](assets/screenshot-statusline-codex.png)
+Codex 原生 `status_line` 可以组合内置字段，但不接受自定义命令渲染器。Token Tracker 继续使用 `Stop` Hook：每次回答完成后，由 Codex 在回答尾部追加一张两行纯文本信息卡。纯文本输出不注入 ANSI 终端控制序列，避免 Codex 将颜色码显示成 `[38;2;...]` 等可见文字。
 
 **两行布局**：
 
-- **L1** `[项目](分支 +A -D) | Total: <会话累计 token> | Model: <模型 推理强度>` —— Total 橙、Model 红；第三方 API provider（如 DeepSeek）无订阅配额，L1 加显示会话 Cost（按逐请求时间与上下文档位套用内置官方价估算）
-- **L2** `Limit: 5h <进度条> % (reset <倒计时>) | 7d <进度条> % (reset <倒计时>) | <窗口> Ctx <进度条> %` —— 配额按当前会话 / 同 model_provider 取数，多账号多 provider 混跑不串数据；无配额数据时不挂 `Limit:` 前缀
+- **L1** `[项目](分支 +A -D) | Total: <会话累计 token> | Model: <模型 推理强度>` -- 第三方 API provider（如 DeepSeek）无订阅配额，L1 加显示会话 Cost（按逐请求时间与上下文档位套用内置官方价估算）
+- **L2** `Limit: 5h <进度条> % (reset <倒计时>) | 7d <进度条> % (reset <倒计时>) | <窗口> Ctx <进度条> %` -- 配额按当前会话 / 同 model_provider 取数，多账号多 provider 混跑不串数据；无配额数据时不挂 `Limit:` 前缀
 
-渲染 24-bit 真彩色、**不进模型上下文**（实测），**配色跟随当前主题**（与 CLI 报表 / CC 状态栏同源，`tt theme` 切换三者一起变）。`tt unsetup` 一并移除。
+信息卡由 Codex 自己控制 `↳ Hook ·` 容器的颜色和排版；Token Tracker 只输出纯文本内容。`tt unsetup` 一并移除。
 
 ### Kimi Code（官方接口）
 
@@ -123,7 +121,7 @@ $tt-sidebar
 ```
 
 - 支持 iTerm2、Ghostty（≥ 1.3.0，macOS）与 tmux；iTerm2 无需启用 Python API。首次使用会先出现 Codex 的沙箱外执行确认，随后 macOS 可能再请求「自动化」授权，请允许 Token Tracker 控制 iTerm2 / Ghostty；两次确认均属预期，后续可复用授权。原会话窗格保持焦点。iTerm2 原生全屏会拒绝 AppleScript 调整列宽，需先退出全屏再执行。
-- `tt setup` 把 Codex 的伪 statusline `Stop` 与 sidebar `UserPromptSubmit` 统一安装到用户级 `hooks.json`；后者用本地 FIFO 把新提示词推给已打开的分屏，无 sidebar 时立即返回，不轮询 transcript、不上传或持久化提示词。
+- `tt setup` 把 Codex 的信息卡 `Stop` Hook 与 sidebar `UserPromptSubmit` Hook 统一安装到用户级 `hooks.json`；后者用本地 FIFO 把新提示词推给已打开的分屏，无 sidebar 时立即返回，不轮询 transcript、不上传或持久化提示词。
 - Codex 会要求审查非托管 Hook：安装后运行 `/hooks`，信任 Token Tracker 对应项。Skill 未立即出现时重启 Codex。
 - `tt unsetup` 会一并移除 Token Tracker 管理的 Skill 与 Hook；若 `~/.agents/skills/tt-sidebar` 已是用户自己的同名 Skill，安装与卸载都不会覆盖它。
 
@@ -180,7 +178,7 @@ tt --version      # 查看版本（-v / -V 同义）
 
 ## 配色主题
 
-内置 6 套主题，CLI 报表与各 Agent 状态栏（CC / Codex / Kimi Code）**统一同源**（切主题一起变）：
+内置 6 套主题，CLI 报表与 Claude Code / Kimi Code 状态栏**统一同源**（切主题一起变）；Codex Hook 信息卡的容器样式由 Codex 控制：
 
 ![支持的主题](assets/screenshot-themes.png)
 
@@ -210,7 +208,7 @@ tt monthly --theme nord  # 任意报表临时换主题渲染（不持久化、�
 1. **选语言** — 中文 / English（落 `~/.config/token-tracker/config.json`）
 2. **选配色主题** — 6 套主题上下键选择，每个选项右侧内联色板预览
 3. **接管 Claude Code 状态栏** — Yes/No（仅检测到 Claude Code 时；已有自定义 statusLine 会先备份、选 No 完全不碰）
-4. **启用 Codex 伪 statusline** — Yes/No（仅检测到 Codex 时）
+4. **启用 Codex Hook 信息卡** — Yes/No（仅检测到 Codex 时）
 5. **启用 Kimi Code 状态栏** — Yes/No（仅检测到 Kimi Code 时；已有自定义 `status_line.command` 默认不覆盖）
 
 CI / 非 tty 环境（Docker / 脚本 / `curl|bash`）自动按**推荐默认**配置：语言跟随系统设置、主题 mocha、组件默认开启但**不替换已有自定义 statusLine**。装好后想改任何一项，再跑一次 `tt setup` 即可。

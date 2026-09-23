@@ -31,8 +31,8 @@ DEFAULT_QUOTA_URL = "https://api.kimi.com/coding/v1/usages"
 MAX_SESSIONS = 20
 MAX_TERMINAL_MAPPINGS = 20
 
-# 配色由 tt setup / update_hook / tt theme set 烘焙时注入（跟随当前主题，与 CC/Codex statusline 同源）。
-# Kimi TUI 支持 24-bit truecolor，只注入 truecolor 一套（同 Codex 伪 statusline）。
+# 配色由 tt setup / update_hook / tt theme set 烘焙时注入（跟随当前主题，与 CC statusline 同源）。
+# Kimi TUI 支持 24-bit truecolor，只注入 truecolor 一套。
 C = __STATUSLINE_TRUECOLOR__
 RST = C["reset"]
 BOLD = "\033[1m"

@@ -164,7 +164,7 @@ def save_codex_faux_statusline(enabled: bool) -> None:
 
 
 def codex_faux_statusline_intent() -> bool | None:
-    """读用户对 Codex 伪 statusline 的意图。严格 bool；非 bool / 缺字段 → None（视为没表达）。"""
+    """读用户对 Codex Hook 信息卡的意图。严格 bool；非 bool / 缺字段 → None（视为没表达）。"""
     val = load_config().get("codex_faux_statusline")
     return val if isinstance(val, bool) else None
 

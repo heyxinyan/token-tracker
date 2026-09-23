@@ -5,6 +5,8 @@
 
 ## 当前阶段
 
+**2026-09-23 20:29 Codex Hook 纯文本适配已同步用户配置（未发版）**：Codex `Stop` Hook 信息卡已移除 ANSI 24-bit 颜色、粗体和淡化控制码，改为无前导空行的双行纯文本 `systemMessage`，解决 Codex 0.156.0 将 `[38;2;...]` 颜色码显示成可见文字的问题。项目、Git、Token、Cost、Model、5h / 7d 限额、重置倒计时、Ctx 与 terminal map 数据链路保持不变；`STATUSLINE_HOOK_VERSION` 升至 2.0，README 与配置向导文案同步改为「Codex Hook 信息卡」。默认与英文 dumb terminal 完整 pytest 各 418 passed，Ruff、mypy（41 个源文件）、`uv lock --check` 和 `git diff --check` 通过；用户级 `/Users/xinyan/.config/token-tracker/codex-statusline.py` 已同步至 2.0，`/Users/xinyan/.codex/hooks.json` 未改动，真实 Codex TUI 视觉验收待本轮结束后确认。
+
 **2026-09-10 00:09 GPT 模型命名空间识别已修复（未发版）**：`chatgpt/gpt-5.6-sol` 原先无法匹配已有定价并按 $0 计；现支持 `chatgpt/gpt-*`、`openai/gpt-*` 缺少独立报价时复用裸模型解析，日期后缀和长上下文阶梯价保持一致。完整 ID 及其变体报价优先，完整 ID 精确价也优先于已缓存的裸模型兜底；未知第三方、嵌套前缀和非 GPT 模型不剥除。完整与英文 dumb terminal pytest 各 **416 passed**，Ruff、mypy 和 diff 检查通过。
 
 **2026-09-09 19:55 `0.5.7` 已发布 PyPI（源码与 tag 已 push）**：包含 Astra / Fable 5.1 定价、Codex 缓存写入计价、此前模型价格校准与扫描性能优化。发布 commit `30a7892`、annotated tag `v0.5.7` 已推送；完整 pytest 与英文 dumb terminal 各 **395 passed**，Ruff、mypy（41 个源文件）、锁文件和 diff 检查通过。从提交快照构建 sdist / wheel，Twine check 通过，wheel 的 44 个包文件与提交逐项一致。PyPI 元数据和实际下载产物的 SHA-256 均与本地一致（wheel `3f4b6d14…3d4a`、sdist `09294a28…452a`）；官方索引无缓存隔离安装后 `tt --version` 正确输出 0.5.7。用户级工具仍为旧安装，未自动升级；原有规范迁移改动和品牌素材保持未提交。
@@ -162,6 +164,8 @@
 
 ## 最近验证
 
+- **2026-09-23 20:29**：**Codex Hook 2.0 已同步用户配置**。同步前确认安装脚本为 1.9 且含 ANSI；同步后版本为 2.0，ANSI 标记检查无匹配，使用用户级安装解释器实跑返回合法的双行纯文本 `systemMessage`。`/Users/xinyan/.codex/hooks.json` 的 SHA-256 同步前后均为 `790fbea0ef5a5ab96a8cd7f275eb64f59dd70cd77e08c973fef3e0a33e012eda`，Stop 命令和其他 Hook 均未改动，不触发新的 Hook 定义信任；真实 Codex TUI 展示待本轮结束后人工确认。代码回归仍沿用本次实现验证结果：默认与 `LANG=C LC_ALL=C TERM=dumb` 完整 pytest 各 **418 passed**，Ruff、mypy、`uv lock --check` 和 `git diff --check` 通过。
+
 - **2026-09-10 00:09**：**GPT 命名空间定价修复**。先复现 `chatgpt/`、`openai/` 前缀导致定价归零，再补最小解析规则；新增 21 项回归覆盖两个前缀、Sol / Astra、日期后缀、272K 上下界、完整 ID 报价优先、缓存兜底后新增精确价，以及未知／嵌套／空前缀边界。完整 pytest 和英文 dumb terminal 各 416 passed，Ruff 全过、mypy 41 个源文件无错误、`git diff --check` 通过。只读加载本机现有价格缓存，确认 `chatgpt/gpt-5.6-sol` 命中 `gpt-5.6-sol`；未修改用户级安装或缓存。
 
 - **2026-09-09 19:55**：**0.5.7 打包、发布与远端回验完成**。版本与锁文件一致；完整测试和英文 dumb terminal 各 395 passed，Ruff / mypy / `uv lock --check` / diff 检查通过。sdist / wheel 经 Twine 校验，包文件与发布提交一致，未混入本地品牌素材或临时文件；远端 main 和 tag 目标已核对。PyPI 两份产物元数据及下载字节的 SHA-256 与本地一致；`uvx --no-cache --index-url https://pypi.org/simple --from token-tracker==0.5.7 tt --version` 返回 0.5.7。构建仅有既存 setuptools license 弃用提示；GitHub CI workflow 为 active，但截至检查时未查询到本次发布提交的 Actions 运行记录，不将其标为远端 CI 通过。
@@ -199,5 +203,3 @@
 - **2026-08-01**：**Kimi 状态栏 Model 段加实际 effort（`K3/high/auto`），Out TPS 逻辑上线但暂不展示**。effort 取 wire `llm.request.thinkingEffort`（stdin 快照无此字段，跟随 `/model` 实时切换）；Out TPS = usage.record output ÷（llm.request→usage.record 时长），端到端有效值（同 CC `api_duration_ms` 口径）。关键坑：request 与其 usage.record 相隔整个生成时长（实测 3.7~56s），1s 节流增量消费下两者必落不同帧，配对 req_time 必须随 state 持久化（内存态永远配不上）。TPS 显示按用户决定先关闭（`_render` 留一行恢复点），计算与 state 持久化保留。KIMI_STATUSLINE_HOOK_VERSION 升 1.2。真实会话端到端验证：effort `high`、tps 25~38 正常结算。pytest / ruff / mypy 全绿。
 
 - **2026-08-01 05:05**：**`docs/statusline-fields.md` 补齐 Codex 伪 statusline 数据字段节（文档，未改实现）**。用本机真实 deepseek 会话（2026-07-31，codex 0.146.0，`model_provider: "deepseek"`，`deepseek-v4-flash` / `deepseek-v4-pro`）实测字段，并对照 openai/codex `hooks/src/schema.rs` 的 `StopCommandInput` 官方定义：Stop hook stdin 共 9 个字段（`session_id` / `turn_id` / `transcript_path` / `cwd` / `hook_event_name` / `model` / `permission_mode` / `stop_hook_active` / `last_assistant_message`，无 token / cost / 额度，需回读 jsonl）；会话 jsonl 的 `session_meta`（含 `model_provider`）、`turn_context`（`model` / `effort` 跟随换模型）、`token_count`（`total_token_usage` / `last_token_usage` 六项 + `model_context_window=996147` + `rate_limits`）均可解析。deepseek 差异明确：`rate_limits.primary/secondary` 为 `null` 无 5h/7d、无官方 cost 字段（靠 `cost.py` 内置价估算）、有 `cached_input_tokens` / `cache_write_input_tokens` 缓存字段。文档结构对齐 CC / Kimi 两节。
-
-- **2026-07-31**：**版本升至 0.5.0 并完成 GitHub / PyPI 发布与远端回验**。`pyproject.toml` / `uv.lock` 已同步 0.5.0，发布 commit `d0c1e77` 与 annotated tag `v0.5.0` 均已 push。完整 pytest **312 全绿**、Ruff 全过、mypy 40 个源文件 0 报错，`uv lock --check` 与 `git diff --check` 通过。由干净发布提交构建的 sdist / wheel 通过 Twine check，wheel 确认包含 `adapters/kimi.py` / `templates/kimi_statusline.py` / `skills/tt_sidebar_kimi/`，METADATA 版本 / 描述 / 三项运行依赖正确。PyPI JSON 已传播，远端 wheel SHA-256 `7baa7e57…0978`、sdist SHA-256 `fafdbe25…792c` 与本地产物完全一致；`uvx --no-cache` 从 PyPI 安装后 `tt --version` 正确输出 0.5.0。

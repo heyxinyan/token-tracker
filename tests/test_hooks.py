@@ -196,16 +196,68 @@ def test_statusline_script_bakes_theme_colors(monkeypatch):
     compile(rendered, "<statusline>", "exec")  # 注入后语法正确
 
 
-def test_codex_statusline_render_injects_version():
-    # Codex 伪 statusline 脚本：版本号 + 主题配色注入、占位符不残留、语法正确（无 __TT_PYTHON__ 需求）。
+def test_codex_statusline_render_injects_version_without_ansi():
+    # Codex Hook 脚本只输出纯文本：不依赖 systemMessage 对 ANSI 的非正式兼容。
     rendered = hooks._render_codex_statusline_hook()
     assert f'__version__ = "{hooks.STATUSLINE_HOOK_VERSION}"' in rendered
     assert "__STATUSLINE_HOOK_VERSION__" not in rendered
-    assert "__STATUSLINE_TRUECOLOR__" not in rendered  # 配色占位符已替换
-    assert "'reset'" in rendered and "38;2" in rendered  # 注入了 truecolor 配色 dict（跟随主题）
+    assert "__STATUSLINE_TRUECOLOR__" not in rendered
+    assert "\x1b[" not in rendered
+    assert "38;2" not in rendered
     assert ".load_session_rate_limits(" not in rendered
     assert "codex._parse_jsonl" not in rendered
     compile(rendered, "<codex-statusline>", "exec")
+
+
+def test_codex_statusline_outputs_plain_text_two_line_system_message(tmp_path):
+    script = tmp_path / "codex-statusline.py"
+    script.write_text(hooks._render_codex_statusline_hook(), encoding="utf-8")
+    project = tmp_path / "project"
+    project.mkdir()
+    _git(project, "init", "-b", "main")
+    rollout = tmp_path / "session.jsonl"
+    rows = [
+        {"timestamp": "2026-09-22T12:00:00Z", "type": "session_meta", "payload": {
+            "id": "codex-plain", "cwd": str(project), "model_provider": "openai",
+        }},
+        {"timestamp": "2026-09-22T12:00:01Z", "type": "turn_context", "payload": {
+            "model": "gpt-5.6-sol", "effort": "high",
+        }},
+        {"timestamp": "2026-09-22T12:00:02Z", "type": "event_msg", "payload": {
+            "type": "token_count",
+            "info": {
+                "total_token_usage": {
+                    "input_tokens": 20_000, "output_tokens": 3_000, "total_tokens": 23_000,
+                },
+                "last_token_usage": {"input_tokens": 23_247, "output_tokens": 1_000},
+                "model_context_window": 258_400,
+            },
+            "rate_limits": {
+                "limit_id": "codex",
+                "primary": {"used_percent": 62, "window_minutes": 300},
+                "secondary": {"used_percent": 62, "window_minutes": 10_080},
+            },
+        }},
+    ]
+    rollout.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(script)],
+        input=json.dumps({"transcript_path": str(rollout), "cwd": str(project)}),
+        text=True,
+        capture_output=True,
+        check=True,
+        env={**os.environ, "HOME": str(tmp_path)},
+    )
+    message = json.loads(result.stdout)["systemMessage"]
+
+    assert message.splitlines() == [
+        "[project](main) | Total: 23k | Model: gpt-5.6-sol high",
+        "Limit: 5h █████░░░ 62% | 7d █████░░░ 62% | 258k Ctx █░░░░░░░ 9%",
+    ]
+    assert not message.startswith("\n")
+    assert "\x1b[" not in message
+    assert "38;2" not in message
 
 
 def test_codex_statusline_records_terminal_map_without_touching_cc_status(tmp_path):
@@ -462,6 +514,18 @@ def test_codex_statusline_version_roundtrip(tmp_path, monkeypatch):
     assert hooks._installed_codex_statusline_version() == hooks.STATUSLINE_HOOK_VERSION
 
 
+def test_codex_statusline_plain_text_version_bump_triggers_update(tmp_path, monkeypatch):
+    script_path = tmp_path / "codex-statusline.py"
+    old_script = hooks._render_codex_statusline_hook().replace(
+        f'__version__ = "{hooks.STATUSLINE_HOOK_VERSION}"', '__version__ = "1.9"'
+    )
+    script_path.write_text(old_script, encoding="utf-8")
+    monkeypatch.setattr(hooks, "CODEX_STATUSLINE_HOOK_PATH", str(script_path))
+
+    assert hooks._installed_codex_statusline_version() == "1.9"
+    assert hooks.needs_update()
+
+
 def test_setup_components_defaults_all_on():
     # SetupComponents 默认值全开（setup(components=None) 走 recommended_components 智能默认，另测）。
     c = hooks.SetupComponents()
@@ -471,7 +535,7 @@ def test_setup_components_defaults_all_on():
 
 
 def test_setup_components_off_skips_install(tmp_path, monkeypatch):
-    # codex_faux_statusline=False → Codex 伪 statusline 不装。
+    # codex_faux_statusline=False → Codex Hook 信息卡不装。
     # 隔离 HOME，避免污染主人真实 ~/.claude / ~/.codex
     home = tmp_path / "home"
     (home / ".claude").mkdir(parents=True)
@@ -494,7 +558,7 @@ def test_setup_components_off_skips_install(tmp_path, monkeypatch):
     # Codex 端：不再动 [tui].status_line（保持用户原配置）；Stop hook（tt-statusline）也不在 config 里
     codex_content = codex_config.read_text()
     assert "status_line = []" in codex_content  # 用户原 status_line 没被动
-    assert "tt-statusline" not in codex_content   # Codex 伪 statusline hook 段未追加
+    assert "tt-statusline" not in codex_content   # Codex Hook 信息卡段未追加
     # 意图落盘：CC True / Codex False
     from token_tracker import config
     assert config.cc_statusline_intent() is True

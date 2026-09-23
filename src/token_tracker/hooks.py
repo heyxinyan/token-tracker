@@ -21,7 +21,7 @@ _KIMI = kimi_home()      # KIMI_CODE_HOME 覆盖 / ~/.kimi-code
 
 @dataclass
 class SetupComponents:
-    """组件开关。CC statusLine 接管、Codex 伪 statusline（Stop hook）与 Kimi statusline
+    """组件开关。CC statusLine 接管、Codex Hook 信息卡（Stop hook）与 Kimi statusline
     （tui.toml [status_line].command）均为可选组件，意图持久化到 config.json。"""
     cc_statusline: bool = True
     codex_faux_statusline: bool = True
@@ -49,7 +49,7 @@ KIMI_STATUSLINE_QUOTA_PATH = os.path.join(_TT, "tt-kimi-quota.json")
 STATUS_FILE = config.STATUS_FILE                          # CC statusline 缓存（单一权威定义在 config）
 TERMINAL_MAP_FILE = config.TERMINAL_MAP_FILE              # Codex Stop hook 采集的终端定位映射
 HOOK_VERSION = "2.1"  # 2.0: 采集 _terminal_map（sidebar 点击跳转）；2.1: 共享状态无条件随帧携带、防异常帧清表
-STATUSLINE_HOOK_VERSION = "1.9"  # 1.9: 缓存写入独立计价，快照缺失时使用相同的 token 拆分
+STATUSLINE_HOOK_VERSION = "2.0"  # 2.0: Codex systemMessage 改为无 ANSI 的纯文本双行信息卡
 KIMI_STATUSLINE_HOOK_VERSION = "1.2"  # 1.2: Model 段加实际 effort（wire thinkingEffort），新增 Out t/s（output÷请求时长）
 
 CC_BACKUP_PATH = os.path.join(_TT, "cc-backup.json")
@@ -63,7 +63,7 @@ _LEGACY_PATHS = [
 
 # 状态栏脚本模板在 templates/ 包数据（claude_statusline.py / codex_statusline.py）——
 # 独立成文件让 ruff / mypy / 人都能直接读查（600 行脚本藏在 r-string 里 lint 完全失明）。
-# 占位符（__HOOK_VERSION__ / __STATUSLINE_TRUECOLOR__ 等）在 _render_* 烘焙时注入；
+# 占位符（__HOOK_VERSION__ / __STATUSLINE_TRUECOLOR__ 等）在对应 _render_* 烘焙时注入；
 # HOOK_VERSION / STATUSLINE_HOOK_VERSION 是唯一版本来源。
 
 
@@ -85,13 +85,9 @@ def _render_hook_script() -> str:
 
 
 def _render_codex_statusline_hook() -> str:
-    """注入版本号 + 当前主题 statusline 配色（truecolor），得到要落盘的 Codex 伪 statusline 脚本。
-    跟随主题：tt theme set 经 update_hook 重烘焙；不需 __TT_PYTHON__（脚本无 subprocess 调 tt）。"""
-    name = config.resolve_theme()
-    return (
-        _load_template("codex_statusline.py")
-        .replace("__STATUSLINE_HOOK_VERSION__", STATUSLINE_HOOK_VERSION)
-        .replace("__STATUSLINE_TRUECOLOR__", repr(themes.theme_to_statusline_ansi(name)))
+    """注入版本号，得到要落盘的 Codex 纯文本 Hook 脚本。"""
+    return _load_template("codex_statusline.py").replace(
+        "__STATUSLINE_HOOK_VERSION__", STATUSLINE_HOOK_VERSION
     )
 
 
@@ -816,7 +812,7 @@ def _unsetup_claude() -> None:
 
 
 def _unsetup_codex() -> None:
-    """卸载 Codex 端：移除伪 statusline hook + 脚本。
+    """卸载 Codex 端：移除 Hook 信息卡 + 脚本。
     老用户残留：如有 codex-backup.json（旧版我们改过 status_line），恢复原值；新版不再动 status_line。"""
     result = _read_codex_config()
     content = result[0] if result else ""

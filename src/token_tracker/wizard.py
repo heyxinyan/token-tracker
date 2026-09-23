@@ -200,7 +200,7 @@ def ask_components(step_prefix_fn: Callable[[int], str] | None = None) -> SetupC
         cc = _ask_yes_no(f"{prefix(qi)}{t('wizard_q_cc_statusline')}", default=cc)
         qi += 1
 
-    # Q2: Codex 伪 statusline（仅 Codex 存在）
+    # Q2: Codex Hook 信息卡（仅 Codex 存在）
     if _has_codex():
         codex_faux = _ask_yes_no(f"{prefix(qi)}{t('wizard_q_codex_statusline')}", default=codex_faux)
         qi += 1
